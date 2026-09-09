@@ -41,7 +41,7 @@ model.train()
 loss_fun = nn.MSELoss()
 
 #%% Optimizer
-learning_rate = 0.02
+learning_rate = 0.001
 # test different values of too large 0.1 and too small 0.001
 # best 0.02
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
@@ -52,21 +52,31 @@ slope, bias = [], []
 NUM_EPOCHS = 1000
 BATCH_SIZE = 2
 for epoch in range(NUM_EPOCHS):
-    
-    # set gradients to zero
-    optimizer.zero_grad()
+    # create mini-batches
+    # shuffle the data before we split it into mini-batches
+    permutation = torch.randperm(X.shape[0])
+    for i in range(0, X.shape[0], BATCH_SIZE):
 
-    # forward pass
-    y_pred = model(X)
+        # set gradients to zero for each mini-batch
+        optimizer.zero_grad()
 
-    # calculate loss
-    loss = loss_fun(y_pred, y_true)
-    loss.backward()
+        # you get all index numbers from curr to curr+batch_size
+        indices = permutation[i:i+BATCH_SIZE] 
 
-    # update parameters
-    optimizer.step()
+        # Once you get hold of the indices, get hold of the data at that
+        # index position
+        batch_X, batch_Y = X[indices], y_true[indices]
 
-    # get parameters
+        # apply gradient descent for this particular mini-batch
+        y_pred = model(batch_X)
+        loss = loss_fun(y_pred, batch_Y)
+        loss.backward()
+        optimizer.step()
+
+        # store loss
+        losses.append(float(loss.data))
+
+    # get parameters once per epoch
     for name, param in model.named_parameters():
         if param.requires_grad:
             if name == 'linear.weight':
@@ -74,9 +84,6 @@ for epoch in range(NUM_EPOCHS):
             if name == 'linear.bias':
                 bias.append(param.data.numpy()[0])
 
-
-    # store loss
-    losses.append(float(loss.data))
     # print loss
     if (epoch % 100 == 0):
         print(f"Epoch {epoch}, Loss: {loss.data}")
@@ -99,6 +106,6 @@ y = [i[0] for i in y_true.data.numpy()]
 sns.scatterplot(x=X_list, y=y)
 sns.lineplot(x=X_list, y=y_pred, color='red')
 # %%
-import hiddenlayer as hl
-graph = hl.build_graph(model, X)
+from torchview import draw_graph
+graph = draw_graph(model, input_data=X)
 # %%

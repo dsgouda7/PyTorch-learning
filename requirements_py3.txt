@@ -6,4 +6,7 @@ requests
 psutil
 kaleido
 graphviz
+torchview
 torchmetrics
+numpy
+scikit-learn

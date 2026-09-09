@@ -105,4 +105,28 @@ sns.lineplot(x=X_list, y=y_pred, color='red')
 # %%
 import hiddenlayer as hl
 graph = hl.build_graph(model, X)
-# %%
+
+
+# %% Datasets and dataloaders
+# Dataset - Stores the samples and labels
+# Dataloader - Provides an iterable over the dataset with support 
+# for batching, shuffling, and parallel loading (similar to tensor randperm operations)
+# like nn.Module, we use the torch.utils.data.Dataset class to inherit when
+# creating a custom dataset.
+# this inheritence mandates we implement the __init__, __len__, and __getitem__ methods
+class CarsDataset(torch.utils.data.Dataset):
+    # define the input and the output of the dataset
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
+
+    # get the size of the dataset
+    def __len__(self):
+        return len(self.X)
+
+    # get a specific item from the dataset (by index)
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+dataset = CarsDataset(X, y_true)
+dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)

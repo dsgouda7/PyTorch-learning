@@ -16,3 +16,4 @@ ind.pubmed*
 *.pyc
 venv/
 .vscode/
+.venv*
