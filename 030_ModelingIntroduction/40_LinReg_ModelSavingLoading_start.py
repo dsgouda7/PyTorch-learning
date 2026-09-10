@@ -67,6 +67,7 @@ slope, bias = [], []
 number_epochs = 1000
 for epoch in range(number_epochs):
     for j, data in enumerate(train_loader):
+
         # optimization
         optimizer.zero_grad()
 
@@ -99,10 +100,21 @@ for epoch in range(number_epochs):
         print(f"Epoch {epoch}, Loss: {loss.data}")
 
 # %% model state dict
-
+# only save the model.state_dict() which contains the model parameters
+# this allows us to save and load the model parameters without saving the entire model architecture
+# saving the entire model can be done using torch.save(model, PATH) but is not recommended for long-term storage
+# especially since model architecture may differ between saving and loading time between different machines or code versions.
 # %% save model state dict
+torch.save(model.state_dict(), 'linear_regression_model.pth')
 
 # %% load a model
+model_loaded = LinearRegressionTorch(input_size=input_dim, output_size=output_dim)
+model_loaded.load_state_dict(torch.load('linear_regression_model.pth'))
+model.state_dict()
+# this sets the model to evaluation mode, affecting layers like dropout and batchnorm, i.e., locks down the model
+# for inference mode only
+# now the model can be used for inference without affecting the training state of the original model
+model_loaded.eval()
 
 
 # %%

@@ -57,24 +57,90 @@ lr = 0.002
 # (that would be Batch Gradient descent)
 optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 
+# %% How the model, loss, and optimizer are connected
+# These objects are not all directly linked to each other.
+#
+# model.parameters() -- same Parameter objects --> optimizer.param_groups
+#        |
+#        | model(X): autograd records operations that use the parameters
+#        v
+#   y_pred -- loss_func(y_pred, y_true) --> loss tensor
+#                                                |
+#                                          loss.backward()
+#                                                v
+#                                  model parameter .grad values
+#                                                |
+#                                          optimizer.step()
+#                                                v
+#                                   model parameter values change
+#
+# The loss function does not contain the model or optimizer. The connection is
+# created dynamically because y_pred was calculated from model parameters.
+#
+# PYTORCH SHORTCOMING: PARAMETER OWNERSHIP IS IMPLICIT
+# ---------------------------------------------------
+# The model registers the parameters, but it is not their exclusive owner:
+#
+# - autograd writes each parameter's .grad state when loss.backward() runs;
+# - optimizer.zero_grad() clears that .grad state;
+# - optimizer.step() mutates the parameter values;
+# - user code can also mutate either value inside torch.no_grad().
+#
+# Strictly speaking, the loss function does not mutate the parameters. The loss
+# tensor asks autograd to do so through backward(). Still, these components
+# coordinate through shared mutable Parameter objects instead of explicit inputs
+# and return values. That makes ownership and data flow harder to see and allows
+# mistakes such as stale gradients, optimizing the wrong parameters, or attaching
+# multiple optimizers to the same parameters without an obvious warning.
+model_parameters = list(model.parameters())
+optimizer_parameters = [
+    parameter
+    for parameter_group in optimizer.param_groups
+    for parameter in parameter_group['params']
+]
+
+optimizer_uses_model_parameters = all(
+    model_parameter is optimizer_parameter
+    for model_parameter, optimizer_parameter in zip(
+        model_parameters, optimizer_parameters
+    )
+)
+
+assert optimizer_uses_model_parameters
+assert len(list(loss_func.parameters())) == 0
+print(f'Optimizer references model parameters: {optimizer_uses_model_parameters}')
+print(f'Loss function trainable parameters: {len(list(loss_func.parameters()))}')
+
 # %% Train the model
 losses, slope, bias = [], [], []
 
 num_epochs = 10000
 for epoch in range(num_epochs):
-    # init gradients to zero
+    # The optimizer clears .grad on the model parameters it references.
     optimizer.zero_grad()
 
-    # forward pass
+    # The forward pass creates an autograd graph from parameters to predictions.
     y_pred = model(X)
 
-    # compute the loss
+    # The loss extends that graph from predictions to one scalar value.
     loss = loss_func(y_pred, y_true)
-    # this single line figures out the gradients using the derivative 
-    # of the original function and updates the params
+
+    if epoch == 0:
+        print(f'Prediction tracks gradients: {y_pred.requires_grad}')
+        print(f'Loss autograd node: {type(loss.grad_fn).__name__}')
+
+    # backward() traverses the graph and writes gradients to each parameter's
+    # .grad attribute. It does not update the parameter values.
     loss.backward()
 
-    # update the weights
+    if epoch == 0:
+        first_gradients = {
+            name: parameter.grad.detach().clone()
+            for name, parameter in model.named_parameters()
+        }
+        print(f'Model gradients after backward: {first_gradients}')
+
+    # step() reads those .grad values and updates the same Parameter objects.
     optimizer.step()
 
     # get slope and weights 

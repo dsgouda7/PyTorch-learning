@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 import torch.nn as nn 
 import seaborn as sns
+from torch.utils.data import Dataset, DataLoader
 
 #%% data import
 cars_file = 'https://gist.githubusercontent.com/noamross/e5d3e859aa0c794be10b/raw/b999fb4425b54c63cab088c0ce2c0d6ce961a563/cars.csv'
@@ -22,6 +23,35 @@ y_list = cars.mpg.values
 y_np = np.array(y_list, dtype=np.float32).reshape(-1,1)
 X = torch.from_numpy(X_np)
 y_true = torch.from_numpy(y_np)
+
+
+# %% Datasets and dataloaders
+# Dataset - Stores the samples and labels
+# Dataloader - Provides an iterable over the dataset with support
+# for batching, shuffling, and parallel loading (similar to tensor randperm operations)
+# like nn.Module, we use the torch.utils.data.Dataset class to inherit when
+# creating a custom dataset.
+# this inheritence mandates we implement the __init__, __len__, and __getitem__ methods
+BATCH_SIZE = 2
+class LinearRegressionDataset(torch.utils.data.Dataset):
+    # define the input and the output of the dataset
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
+
+    # get the size of the dataset
+    def __len__(self):
+        return len(self.X)
+
+    # get a specific item from the dataset after pre-processing (by index))
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+dataset = LinearRegressionDataset(X_np, y_np)
+
+# the data loader will then leverage the methods implemented under the dataset
+# to shuffle, sample and batch the data efficiently using internal functions.
+dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
 #%%
 class LinearRegressionTorch(nn.Module):
@@ -46,21 +76,25 @@ learning_rate = 0.02
 # best 0.02
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
+#%% check trainloader
+for i, data in enumerate(dataloader):
+    print(f"Batch {i}: Data = {data}, Shape = {[d.shape for d in data]}")
+
 #%% perform training
 losses = []
 slope, bias = [], []
 NUM_EPOCHS = 1000
-BATCH_SIZE = 2
+
 for epoch in range(NUM_EPOCHS):
-    for i in range(0, X.shape[0], BATCH_SIZE):
+    for i, (X_batch, y_batch) in enumerate(dataloader):
         # optimization
         optimizer.zero_grad()
 
         # forward pass
-        y_pred = model(X[i:i+BATCH_SIZE])
+        y_pred = model(X_batch)
 
         # compute loss
-        loss = loss_fun(y_pred, y_true[i:i+BATCH_SIZE])
+        loss = loss_fun(y_pred, y_batch)
         losses.append(loss.item())
 
         # backprop
@@ -105,28 +139,3 @@ sns.lineplot(x=X_list, y=y_pred, color='red')
 # %%
 import hiddenlayer as hl
 graph = hl.build_graph(model, X)
-
-
-# %% Datasets and dataloaders
-# Dataset - Stores the samples and labels
-# Dataloader - Provides an iterable over the dataset with support 
-# for batching, shuffling, and parallel loading (similar to tensor randperm operations)
-# like nn.Module, we use the torch.utils.data.Dataset class to inherit when
-# creating a custom dataset.
-# this inheritence mandates we implement the __init__, __len__, and __getitem__ methods
-class CarsDataset(torch.utils.data.Dataset):
-    # define the input and the output of the dataset
-    def __init__(self, X, y):
-        self.X = X
-        self.y = y
-
-    # get the size of the dataset
-    def __len__(self):
-        return len(self.X)
-
-    # get a specific item from the dataset (by index)
-    def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
-
-dataset = CarsDataset(X, y_true)
-dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)

@@ -1,6 +1,7 @@
 torch
 torchvision
 ipykernel
+nbconvert
 seaborn
 requests
 psutil
@@ -10,3 +11,4 @@ torchview
 torchmetrics
 numpy
 scikit-learn
+skorch
